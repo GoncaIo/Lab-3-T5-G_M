@@ -68,7 +68,6 @@ int main(int argc, char** argv)
     leitura do(s) próximo(s) caracter(es)
     */
 
-
     tcflush(fd, TCIOFLUSH);
 
     if (tcsetattr(fd,TCSANOW,&newtio) == -1) {
@@ -97,9 +96,9 @@ int main(int argc, char** argv)
         }
         printf("\n");
 
-        // Verificar se o SET é válido
-        if (res == 5 && frame[0] == 0x5c && frame[2] == 0x08 && frame[4] == 0x5c) {
-            // Quadro SET recebido, enviar resposta UA
+        // Verificar se o SET é válido, comprar bcc
+        if (res == 5 && frame[0] == 0x5c && frame[1] == 0x03 && frame[4] == 0x5c && cal_bcc(frame[1], frame[2]) == frame[3]) {
+            // SET valido
             unsigned char frameUA[5];
             frameUA[0] = 0x5c; // FLAG
             frameUA[1] = 0x01; // Address
@@ -107,7 +106,7 @@ int main(int argc, char** argv)
             frameUA[3] = cal_bcc(frameUA[1], frameUA[2]); // BCC
             frameUA[4] = 0x5c; // FLAG
 
-            // Escrever o quadro UA na porta serial
+            // enviar resposta UA
             res = write(fd, frameUA, 5);
             printf("Sent UA frame\n");
         }
@@ -115,10 +114,6 @@ int main(int argc, char** argv)
         if (frame[0] == 'z') STOP = TRUE;
     }
 
-
-    /*
-    O ciclo WHILE deve ser alterado de modo a respeitar o indicado no guião
-    */
 
     tcsetattr(fd,TCSANOW,&oldtio);
     close(fd);

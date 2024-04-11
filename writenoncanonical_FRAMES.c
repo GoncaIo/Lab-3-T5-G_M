@@ -90,7 +90,6 @@ int main(int argc, char** argv)
     }
     */
 
-    // Supervision frame
     frame[0] = 0x5c; // FLAG
     frame[1] = 0x03; // Address
     frame[2] = 0x08; // Control (SET)
@@ -113,14 +112,14 @@ int main(int argc, char** argv)
     printf("%d bytes written\n", res);
 
     // UA recebida
-    res = read(fd, received_frame, 5);
+    res = read(fd, frameUA, 5);
     printf("%d bytes received\n", res);
 
-
-    /*
-    O ciclo FOR e as instruções seguintes devem ser alterados de modo a respeitar
-    o indicado no guião
-    */
+    // Verificar se o UA é válido, comprar bcc
+        if (res == 5 && frameUA[0] == 0x5c && frameUA[1] == 0x01 && frameUA[4] == 0x5c && cal_bcc(frameUA[1], frameUA[2]) == frameUA[3]) {
+            // SET valido
+            printf("Received correct UA frame\n");
+        }
 
 
     if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
