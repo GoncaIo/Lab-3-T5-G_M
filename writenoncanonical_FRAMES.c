@@ -31,7 +31,7 @@ int main(int argc, char** argv)
     char buf[255];
     int i, sum = 0, speed = 0;
 
-    unsigned char frame[5];
+    unsigned char frame[5], frameAU[5];
 
     if ( (argc < 2) ||
          ((strcmp("/dev/ttyS0", argv[1])!=0) &&
@@ -101,7 +101,7 @@ int main(int argc, char** argv)
     */
 
     //debug
-    printf("Bytes sent\n F A C BCC F\n")
+    printf("Bytes sent\n F A C BCC F\n");
     for (int i = 0; i < 5; i++)
     {
         printf("%02x ", frame[i]);

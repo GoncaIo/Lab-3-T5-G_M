@@ -11,21 +11,23 @@
 #define FALSE 0
 #define TRUE 1
 
+#define F 0x5c
+#define A 0x03
+#define C 0x08
+#define BCC A^C
+
+#define START 0
+#define FLAG_RCV 1
+#define A_RCV 2
+#define C_RCV 3
+#define BCC_RCV 4
+#define STOPS 5
+
 volatile int STOP=FALSE;
-
-//XOR para calcular o BCC1
-unsigned char cal_bcc(unsigned char address, unsigned char control)
-{
-    unsigned char bcc = 0;
-
-    bcc = address^control;
-
-    return bcc;
-}
 
 int main(int argc, char** argv)
 {
-    int fd,c, res;
+    int fd, res, estado=0;
     struct termios oldtio,newtio;
     char buf[255];
     unsigned char frame[5];
@@ -84,12 +86,95 @@ int main(int argc, char** argv)
    //     printf(":%s:%d\n", buf, res);
    //     if (buf[0]=='z') STOP=TRUE;
    // }
+
+   printf("antes while\n"); // debug
     
      while (STOP == FALSE) {       /* loop for input */
-        res = read(fd, frame, 5);   /* returns after 5 chars have been input */
+        res = read(fd, frame, 1);   /* returns after 5 chars have been input */
 
+        switch (estado)
+        {
+        case START:
+            if (buffer[0] == F)
+            {
+                estado = FLAG_RCV;
+                printf("leu a flag - estado é %d\n", estado);//debug
+         
+            }           
+            
+            break;  
+
+        case FLAG_RCV: 
+        if (res == 0x03)
+        {
+            estado = 2;
+            printf("leu A\n");//debug
+   
+        }
+        else if (res == 0xc5)
+        {
+            estado = 1;
+        }
+        else
+        {
+            estado = 0;
+        }
+        printf("flag rcv\n");//debug
+            
+            break;
+
+        case A_RCV: 
+         if (res == 0x08)
+        {
+            estado = C_RCV;
+              printf("leu C\n");//debug
+           
+        }
+        else if (res == 0xc5)
+        {
+            estado = 1;
+        }
+        else
+        {
+            estado = 0;
+        }
+            
+            break;
+
+        case C_RCV: 
+            if (res == BCC)
+        {
+            estado = BCC_RCV;
+              printf("leu BCC\n");//debug
+          
+        }
+        else if (res == 0xc5)
+        {
+            estado = 1;
+        }
+        else
+        {
+            estado = 0;
+        }
+            break;
+
+        case BCC_RCV: 
+          if (res == 0xc5)
+        {
+            estado = STOPS;
+              printf("leu BCC ok fim\n");//debug
+     
+        }
+        else
+        {
+            estado = 0;
+        }
+            break;
+
+   }
+        
         //debug
-         printf("Bytes recived\n F A C BCC F\n")
+         printf("Bytes recived\n F A C BCC F\n");
         for (int i = 0; i < 5; i++)
         {
          printf("%02x ", frame[i]);
