@@ -49,7 +49,7 @@ int main(int argc, char** argv)
     int fd,c, res;
     struct termios oldtio,newtio;
     char buf[255];
-    int i, sum = 0, speed = 0;
+    int i, sum = 0, speed = 0, estado = 0;
 
     unsigned char frame[5], frameAU[5];
 
@@ -215,6 +215,7 @@ int main(int argc, char** argv)
         }
             break;
 
+   }
    }
    //UA valido recebido
 

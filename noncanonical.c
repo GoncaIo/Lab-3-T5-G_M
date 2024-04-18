@@ -181,7 +181,8 @@ int main(int argc, char** argv)
         }
             break;
 
-   }
+        }
+     }
     //SET valido recebido
 
     //enviar resposta UA
