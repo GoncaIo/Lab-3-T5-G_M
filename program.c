@@ -5,7 +5,7 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <stdio.h>
-#include <linklayer.h>
+//#include <linklayer.h>
 
 
 #define BAUDRATE B38400
@@ -40,9 +40,24 @@
 
 volatile int STOP=FALSE;
 
-llopen(int role)
+  typedef struct linkLayer{
+    char serialPort[50];
+    int role; //defines the role of the program: 0==Transmitter, 1=Receiver
+    int baudRate;
+    int numTries;
+    int timeOut;
+} linkLayer;
+
+llopen(linkLayer connectionParameters)
 {
-    if (role == transmitter)
+    int fd, res;
+    struct termios oldtio,newtio;
+    char buf[255];
+    int i, sum = 0, speed = 0, estado = 0;
+
+    unsigned char frame[5], frameAU[5];
+
+    if (connectionParameters.role == transmitter)
     {
         printf("Transmitter\n");
         /*
@@ -51,8 +66,8 @@ llopen(int role)
     */
 
 
-    fd = open(argv[1], O_RDWR | O_NOCTTY );
-    if (fd < 0) { perror(argv[1]); exit(-1); }
+    fd = open(connectionParameters.serialPort, O_RDWR | O_NOCTTY );
+    if (fd < 0) { perror(connectionParameters.serialPort); exit(-1); }
 
     if ( tcgetattr(fd,&oldtio) == -1) { /* save current port settings */
         perror("tcgetattr");
@@ -215,7 +230,7 @@ llopen(int role)
 
 
 
-    else if (role == receiver)
+    else if (connectionParameters.role == receiver)
     {
         printf("Receiver\n");
         /*
@@ -224,8 +239,8 @@ llopen(int role)
     */
 
 
-    fd = open(argv[1], O_RDWR | O_NOCTTY );
-    if (fd < 0) { perror(argv[1]); exit(-1); }
+    fd = open(connectionParameters.serialPort, O_RDWR | O_NOCTTY );
+    if (fd < 0) { perror(connectionParameters.serialPort); exit(-1); }
 
     if (tcgetattr(fd,&oldtio) == -1) { /* save current port settings */
         perror("tcgetattr");
@@ -280,13 +295,6 @@ llopen(int role)
 
 int main(int argc, char** argv)
 {
-    int fd,c, res;
-    struct termios oldtio,newtio;
-    char buf[255];
-    int i, sum = 0, speed = 0, estado = 0;
-
-    unsigned char frame[5], frameAU[5];
-
     if ( (argc < 3) ||
          ((strcmp("/dev/ttyS0", argv[1])!=0) &&
           (strcmp("/dev/ttyS1", argv[1])!=0) )) {
@@ -294,7 +302,18 @@ int main(int argc, char** argv)
         exit(1);
     }
 
-    llopen(argv[3]);
+  
+
+    linkLayer myLinkLayer;
+
+    strcpy(myLinkLayer.serialPort, argv[1]);
+    myLinkLayer.role = atoi(argv[2]);
+    myLinkLayer.baudRate = BAUDRATE;
+    myLinkLayer.numTries = 3;
+    myLinkLayer.timeOut = 4;
+
+    
+    llopen(myLinkLayer);
     
     return 0;
 }

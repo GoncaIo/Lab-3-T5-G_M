@@ -33,6 +33,11 @@
 
 volatile int STOP=FALSE;
 
+llopen()
+{
+
+}
+
 int main(int argc, char** argv)
 {
     int fd, res, estado=0;
@@ -98,103 +103,7 @@ int main(int argc, char** argv)
    printf("antes while\n"); // debug
 
 
-    //Maquina de estados SET
-     while (estado != STOPS) {       /* loop for input */
-        res = read(fd, frame, 1);   /* returns after 1 chars have been input */
-
-        switch (estado)
-        {
-        case START:
-            if (frame[0] == F)
-            {
-                estado = FLAG_RCV;
-                printf("leu a flag - estado %d\n", estado);//debug
-         
-            }           
-            
-            break;  
-
-        case FLAG_RCV: 
-        if (frame[0] == A)
-        {
-            estado = A_RCV;
-            printf("leu A\n");//debug
    
-        }
-        else if (frame[0] == F)
-        {
-            estado = FLAG_RCV;
-        }
-        else
-        {
-            estado = START;
-        }
-        printf("flag rcv\n");//debug
-            
-            break;
-
-        case A_RCV: 
-         if (frame[0] == C)
-        {
-            estado = C_RCV;
-              printf("leu C\n");//debug
-           
-        }
-        else if (frame[0] == F)
-        {
-            estado = FLAG_RCV;
-        }
-        else
-        {
-            estado = START;
-        }
-            
-            break;
-
-        case C_RCV: 
-            if (frame[0] == BCC)
-        {
-            estado = BCC_RCV;
-              printf("leu BCC\n");//debug
-          
-        }
-        else if (frame[0] == F)
-        {
-            estado = FLAG_RCV;
-        }
-        else
-        {
-            estado = START;
-        }
-            break;
-
-        case BCC_RCV: 
-          if (frame[0] == F)
-        {
-            estado = STOPS;
-              printf("leu BCC ok fim\n");//debug
-     
-        }
-        else
-        {
-            estado = START;
-        }
-            break;
-
-        }
-     }
-    //SET valido recebido
-
-    //enviar resposta UA
-    unsigned char frameUA[5];
-    frameUA[0] = F; // FLAG
-    frameUA[1] = AU; // Address
-    frameUA[2] = CU; // Control UA
-    frameUA[3] = BCCU; // BCC
-    frameUA[4] = F; // FLAG
-
-    res = write(fd, frameUA, 5);
-    printf("Sent UA frame\n");   
 
 
     tcsetattr(fd,TCSANOW,&oldtio);
