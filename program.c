@@ -5,7 +5,9 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <stdio.h>
-//#include <linklayer.h>
+//#include <linklayer.h> //falta incluir esta biblioteca     
+#include <stdlib.h>      
+#include <string.h>                           
 
 
 #define BAUDRATE B38400
@@ -48,7 +50,7 @@ volatile int STOP=FALSE;
     int timeOut;
 } linkLayer;
 
-llopen(linkLayer connectionParameters)
+int llopen(linkLayer connectionParameters)
 {
     int fd, res;
     struct termios oldtio,newtio;
@@ -59,7 +61,7 @@ llopen(linkLayer connectionParameters)
 
     if (connectionParameters.role == transmitter)
     {
-        printf("Transmitter\n");
+        printf("\nTransmitter\n\n");
         /*
     Open serial port device for reading and writing and not as controlling tty
     because we don't want to get killed if linenoise sends CTRL-C.
@@ -67,11 +69,11 @@ llopen(linkLayer connectionParameters)
 
 
     fd = open(connectionParameters.serialPort, O_RDWR | O_NOCTTY );
-    if (fd < 0) { perror(connectionParameters.serialPort); exit(-1); }
+    if (fd < 0) { perror(connectionParameters.serialPort); return(-1); }
 
     if ( tcgetattr(fd,&oldtio) == -1) { /* save current port settings */
         perror("tcgetattr");
-        exit(-1);
+        return(-1);
     }
 
     bzero(&newtio, sizeof(newtio));
@@ -83,58 +85,45 @@ llopen(linkLayer connectionParameters)
     newtio.c_lflag = 0;
 
     newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */
-    newtio.c_cc[VMIN]     = 5;   /* blocking read until 5 chars received */
-
-
+    newtio.c_cc[VMIN]     = 1;   /* blocking read until 5 chars received */
 
     /*
     VTIME e VMIN devem ser alterados de forma a proteger com um temporizador a
     leitura do(s) próximo(s) caracter(es)
     */
-    
+  
 
     tcflush(fd, TCIOFLUSH);
 
     if (tcsetattr(fd,TCSANOW,&newtio) == -1) {
         perror("tcsetattr");
-        exit(-1);
+        return(-1);
     }
 
-    printf("New termios structure set\n");
+    printf("New termios structure set\n\n");
 
-
-    /*
-    for (i = 0; i < 255; i++) {
-        buf[i] = 'a';
-    }
-    */
-
-    frame[0] = F; // FLAG
-    frame[1] = A; // Address
-    frame[2] = C; // Control (SET)
-    frame[3] = BCC; // BCC
-    frame[4] = F; // FLAG
-
-    /*testing
-    buf[25] = '\n';
-    */
+    frame[0] = F; 
+    frame[1] = A;
+    frame[2] = C; 
+    frame[3] = BCC; 
+    frame[4] = F; 
 
     //debug
-    printf("Bytes sent\n F A C BCC F\n");
+    printf("Bytes sent\n F   A   C      BCC  F\n");
     for (int i = 0; i < 5; i++)
     {
-        printf("%02x ", frame[i]);
+        printf("%02x  ", frame[i]);
     }
     printf("\n\n");
 
     res = write(fd,frame,5);
-    printf("%d bytes written\n", res);
+    printf("%d bytes written\n\n", res);
 
-
+    printf("Reciving UA:\n\n");
     //Maquina de estados resposta UA
    while (estado != STOPS) {       /* loop for input */
         res = read(fd, frame, 1);   /* returns after 1 chars have been input */
-
+        printf("Entrou no while\n");
         switch (estado)
         {
         case START:
@@ -142,7 +131,6 @@ llopen(linkLayer connectionParameters)
             {
                 estado = FLAG_RCV;
                 printf("leu a flag - estado %d\n", estado);//debug
-         
             }           
             
             break;  
@@ -205,7 +193,7 @@ llopen(linkLayer connectionParameters)
           if (frame[0] == F)
         {
             estado = STOPS;
-              printf("leu BCC ok fim\n");//debug
+              printf("leu BCC ok fim UA\n");//debug
      
         }
         else
@@ -221,18 +209,16 @@ llopen(linkLayer connectionParameters)
 
     if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
         perror("tcsetattr");
-        exit(-1);
+        return(-1);
     }
 
 
     close(fd);
     }
 
-
-
     else if (connectionParameters.role == receiver)
     {
-        printf("Receiver\n");
+        printf("\nReceiver\n\n");
         /*
     Open serial port device for reading and writing and not as controlling tty
     because we don't want to get killed if linenoise sends CTRL-C.
@@ -240,11 +226,11 @@ llopen(linkLayer connectionParameters)
 
 
     fd = open(connectionParameters.serialPort, O_RDWR | O_NOCTTY );
-    if (fd < 0) { perror(connectionParameters.serialPort); exit(-1); }
+    if (fd < 0) { perror(connectionParameters.serialPort); return(-1); }
 
     if (tcgetattr(fd,&oldtio) == -1) { /* save current port settings */
         perror("tcgetattr");
-        exit(-1);
+        return(-1);
     }
 
     bzero(&newtio, sizeof(newtio));
@@ -256,7 +242,7 @@ llopen(linkLayer connectionParameters)
     newtio.c_lflag = 0;
 
     newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */
-    newtio.c_cc[VMIN]     = 5;   /* blocking read until 5 chars received */
+    newtio.c_cc[VMIN]     = 1;   /* blocking read until 5 chars received */
 
     /*
     VTIME e VMIN devem ser alterados de forma a proteger com um temporizador a
@@ -267,22 +253,112 @@ llopen(linkLayer connectionParameters)
 
     if (tcsetattr(fd,TCSANOW,&newtio) == -1) {
         perror("tcsetattr");
-        exit(-1);
+        return(-1);
     }
 
-    printf("New termios structure set\n");
+   printf("New termios structure set\n\n");
 
-    
-   // while (STOP==FALSE) {       /* loop for input */
-   //     res = read(fd,buf,255);   /* returns after 5 chars have been input */
-   //     buf[res]=0;               /* so we can printf... */
-   //     printf(":%s:%d\n", buf, res);
-   //     if (buf[0]=='z') STOP=TRUE;
-   // }
 
    printf("antes while\n"); // debug
 
+//Maquina de estados SET
+     while (estado != STOPS) {       /* loop for input */
+        res = read(fd, frame, 1);   /* returns after 1 chars have been input */
 
+        switch (estado)
+        {
+        case START:
+            if (frame[0] == F)
+            {
+                estado = FLAG_RCV;
+                printf("leu a flag - estado %d\n", estado);//debug
+         
+            }           
+            
+            break;  
+
+        case FLAG_RCV: 
+        if (frame[0] == A)
+        {
+            estado = A_RCV;
+            printf("leu A\n");//debug
+   
+        }
+        else if (frame[0] == F)
+        {
+            estado = FLAG_RCV;
+        }
+        else
+        {
+            estado = START;
+        }
+        printf("flag rcv\n");//debug
+            
+            break;
+
+        case A_RCV: 
+         if (frame[0] == C)
+        {
+            estado = C_RCV;
+              printf("leu C\n");//debug
+           
+        }
+        else if (frame[0] == F)
+        {
+            estado = FLAG_RCV;
+        }
+        else
+        {
+            estado = START;
+        }
+            
+            break;
+
+        case C_RCV: 
+            if (frame[0] == BCC)
+        {
+            estado = BCC_RCV;
+              printf("leu BCC\n");//debug
+          
+        }
+        else if (frame[0] == F)
+        {
+            estado = FLAG_RCV;
+        }
+        else
+        {
+            estado = START;
+        }
+            break;
+
+        case BCC_RCV: 
+          if (frame[0] == F)
+        {
+            estado = STOPS;
+              printf("leu BCC ok fim\n");//debug
+     
+        }
+        else
+        {
+            estado = START;
+        }
+            break;
+
+        }
+     }
+    //SET valido recebido
+
+    //enviar resposta UA
+    unsigned char frameUA[5];
+    frameUA[0] = F; // FLAG
+    frameUA[1] = AU; // Address
+    frameUA[2] = CU; // Control UA
+    frameUA[3] = BCCU; // BCC
+    frameUA[4] = F; // FLAG
+	
+
+    res = write(fd, frameUA, 5);
+    printf("Sent UA frame\n");   
    
 
 
@@ -290,7 +366,7 @@ llopen(linkLayer connectionParameters)
     close(fd);
     }
     
-    return 0;
+    return 1;
 }
 
 int main(int argc, char** argv)
@@ -314,6 +390,16 @@ int main(int argc, char** argv)
 
     
     llopen(myLinkLayer);
+
+    //llread()
+    //receber uma trama com Ns = 0
+    //fazer maquina de estados para receber trama
+    //testar com uma string de 50 caracteres
+
+    //llwrite()
+    //mandar uma trama com Ns = 1
+
+    //llclose()
     
     return 0;
 }
