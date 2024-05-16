@@ -42,6 +42,8 @@
 
 volatile int STOP=FALSE;
 
+int ns = 0;
+
   typedef struct linkLayer{
     char serialPort[50];
     int role; //defines the role of the program: 0==Transmitter, 1=Receiver
@@ -123,7 +125,6 @@ int llopen(linkLayer connectionParameters)
     //Maquina de estados resposta UA
    while (estado != STOPS) {       /* loop for input */
         res = read(fd, frame, 1);   /* returns after 1 chars have been input */
-        printf("Entrou no while\n");
         switch (estado)
         {
         case START:
@@ -369,9 +370,172 @@ int llopen(linkLayer connectionParameters)
     return 1;
 }
 
+int llwrite(char* buf, int bufSize)
+ {  
+    unsigned char newbuf[bufSize+bufSize+6];
+    int bcc2 = 0;
+
+    newbuf[0] = F;
+    newbuf[1] = A;
+    newbuf[2] = 10000000;
+
+    if (ns == 0)
+    {
+        newbuf[3] = A^10000000;
+    }
+    else
+    {
+        newbuf[3] = A^1100000;
+    }
+    
+
+    for (int i = 4; i < bufSize+bufSize+5; i++)
+    {
+        bcc2 = buf[i] ^ bcc2;
+
+        if (buf[i] == F)
+        {
+            newbuf[i] = //???
+        }
+        
+        newbuf[i] = buf[i];
+    }
+    
+    newbuf[bufSize+bufSize+6] = bcc2;
+
+    res = write(fd, newbuf, [bufSize+5]);
+    printf("Sent information\n"); 
+
+    if (ns == 0)
+    {
+        ns = 1;
+    }
+    else
+    {
+        ns = 0;
+    }
+    
+    //maquina de estados para receber RR ou REJ e mandar novamente?
+
+    return 1;
+ }
+
+int llread(char* packet) // nomear estados e acabar maquina de estados
+{
+    unsigned char frame[5];
+    int estado = 0;
+    int res;
+    int bcc2 = 0;
+    int bufferSize = 6;
+    unsigned char buffer[bufferSize];
+
+    while (estado != STOPS) {      
+        res = read(fd, frame, 1);   
+        switch (estado)
+        {
+        case 0:
+            if (frame[0] == F)
+            {
+                estado = 1;
+                printf("leu a flag - estado %d\n", estado);//debug
+            }           
+            
+            break;  
+
+        case 1: 
+        if (frame[0] == A)
+        {
+            estado = 2;
+            printf("leu A\n");//debug
+   
+        }
+        else if (frame[0] == F)
+        {
+            estado = 1;
+        }
+        else
+        {
+            estado = 0;
+        }
+        printf("flag rcv\n");//debug
+            
+            break;
+
+        case 2: 
+         if (frame[0] == 10000000)
+        {
+            estado = 3;
+              printf("leu C\n");//debug
+           
+        }
+        else if (frame[0] == F)
+        {
+            estado = 1;
+        }
+        else
+        {
+            estado = 0;
+        }
+            
+            break;
+
+        case 3: 
+            if (frame[0] == A^10000000)
+        {
+            estado = 4;
+              printf("leu BCC\n");//debug
+          
+        }
+        else if (frame[0] == F)
+        {
+            estado = 1;
+        }
+        else
+        {
+            estado = 0;
+        }
+            break;
+
+        case 4: 
+          if (frame[0] == F)
+        {
+            estado = 5;
+              printf("leu BCC ok fim\n");//debug
+     
+        }
+        else
+        {
+            estado = 0;
+        }
+            break;
+
+        case 5:
+        if (frame[0] == F)
+        {
+            estado = 6;
+        }
+        else
+        {
+            
+        }
+        case 6:
+        if (frame[0] == bbc2)
+        {
+            estado = 7;
+        }
+
+        bcc2 = bcc2 ^ frame[0];
+        
+    }
+
+    //enviar RR ou REJ
+
+    return 1;
+}
+
 int main(int argc, char** argv)
 {
-    if ( (argc < 3) ||
+    if ( (argc < 4) ||
          ((strcmp("/dev/ttyS0", argv[1])!=0) &&
           (strcmp("/dev/ttyS1", argv[1])!=0) )) {
         printf("Usage:\tnserial SerialPort and role\n\tex: nserial /dev/ttyS1\n   1");
@@ -391,13 +555,76 @@ int main(int argc, char** argv)
     
     llopen(myLinkLayer);
 
-    //llread()
-    //receber uma trama com Ns = 0
-    //fazer maquina de estados para receber trama
-    //testar com uma string de 50 caracteres
+    int bytes_read = 0;
+        int write_result = 0;
+        const int buf_size = MAX_PAYLOAD_SIZE;
+        unsigned char buffer[buf_size];
+        int total_bytes = 0;
 
-    //llwrite()
-    //mandar uma trama com Ns = 1
+        while (bytes_read >= 0)
+        {
+            bytes_read = llread(buffer);
+            if(bytes_read < 0) {
+                fprintf(stderr, "Error receiving from link layer\n");
+                break;
+            }
+            else if (bytes_read > 0) {
+                if (buffer[0] == 1) {
+                    write_result = write(file_desc, buffer+1, bytes_read-1);
+                    if(write_result < 0) {
+                        fprintf(stderr, "Error writing to file\n");
+                        break;
+                    }
+                    total_bytes = total_bytes + write_result;
+                    printf("read from file -> write to link layer, %d %d %d\n", bytes_read, write_result, total_bytes);
+                }
+                else if (buffer[0] == 0) {
+                    printf("App layer: done receiving file\n");
+                    break;
+                }
+            }
+        }
+
+    // open file to read
+        char *file_path = argv[3];
+        int file_desc = open(file_path, O_RDONLY);
+        if(file_desc < 0) {
+            fprintf(stderr, "Error opening file: %s\n", file_path);
+            exit(1);
+        }
+
+        // cycle through
+        const int buf_size = MAX_PAYLOAD_SIZE-1;
+        unsigned char buffer[buf_size+1];
+        int write_result = 0;
+        int bytes_read = 1;
+        while (bytes_read > 0)
+        {
+            bytes_read = read(file_desc, buffer+1, buf_size);
+            if(bytes_read < 0) {
+                    fprintf(stderr, "Error receiving from link layer\n");
+                    break;
+            }
+            else if (bytes_read > 0) {
+                // continue sending data
+                buffer[0] = 1;
+                write_result = llwrite(buffer, bytes_read+1);
+                if(write_result < 0) {
+                    fprintf(stderr, "Error sending data to link layer\n");
+                    break;
+                }
+                printf("read from file -> write to link layer, %d\n", bytes_read);
+            }
+            else if (bytes_read == 0) {
+                // stop receiver
+                buffer[0] = 0;
+                llwrite(buffer, 1);
+                printf("App layer: done reading and sending file\n");
+                break;
+            }
+
+            sleep(1);
+   
 
     //llclose()
     
