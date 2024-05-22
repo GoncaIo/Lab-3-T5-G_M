@@ -33,13 +33,13 @@
 #define receiver 1
 
 volatile int STOP = FALSE;
-int ns = 0, estado = 0, bytesRead = 0, bytesWritten = 0;
+int ns = 0, nr = 0, estado = 0, bytesRead = 1, bytesWritten = 0;
 
 // Opens a connection using the "port" parameters defined in struct linkLayer, returns "-1" on error and "1" on sucess
 int llopen(linkLayer connectionParameters)
 {
     printf("- Opening connection - llopen()\n\n");
-    int fd, res, estado = 0;
+    int fd, res;
     struct termios oldtio, newtio;
     unsigned char frame[5], frameAU[5];
 
@@ -183,8 +183,11 @@ int llopen(linkLayer connectionParameters)
                     break;
                 }
             }
+            
             // UA valido recebido
         }
+        estado = START;
+        STOP = FALSE;
     }
     else if (connectionParameters.role == receiver)
     {
@@ -266,6 +269,8 @@ int llopen(linkLayer connectionParameters)
                 break;
             }
         }
+        estado = START;
+        STOP = FALSE;
         // SET valido recebido
 
         // enviar resposta UA
@@ -297,20 +302,12 @@ int llwrite(char *buf, int bufSize)
     printf("\n- Sending information - llwrite()\n\n");
 
     int fd, res, newbufSize = bufSize * 2 + 6;
-    unsigned char newbuf[newbufSize];
+    unsigned char newbuf[newbufSize], frame[1];
     int bcc2 = 0, i;
 
     newbuf[0] = F;
     newbuf[1] = At;
-
-    if (ns == 0)
-    {
-        newbuf[2] = I0;
-    }
-    else
-    {
-        newbuf[2] = I1;
-    }
+    newbuf[2] = ns ? I0 : I1;
     newbuf[3] = At ^ newbuf[2];
 
     // byte stuffing
@@ -328,6 +325,7 @@ int llwrite(char *buf, int bufSize)
         {
             newbuf[i] = buf[i];
         }
+        bytesWritten++;
     }
 
     newbuf[i + 5] = bcc2;
@@ -336,21 +334,101 @@ int llwrite(char *buf, int bufSize)
     res = write(fd, newbuf, newbufSize);
     printf("Sent information\n\n");
 
-    if (ns == 0)
-    {
-        ns = 1;
-    }
-    else
-    {
-        ns = 0;
-    }
+    // Maquina de estados receção RR ou REJ
+    printf("State Machine Receiving RR or REJ:\n\n");
+    while (STOP == FALSE)
+    {                           
+        res = read(fd, frame, 1); 
 
-    // FAZER: receber REJ e mandar novamente maquina de estados
-    res = read(fd, buf, 5);
-    if ((ns == 0 && buf[2] == REJ0) || (ns == 1 && buf[2] == REJ1))
-    {
-        int llwrite(char *buf, int bufSize);
+        switch (estado)
+        {
+        case START:
+            if (frame[0] == F)
+            {
+                estado = FLAG_RCV;
+                printf("estado %d - flag\n", estado); // debug
+            }
+
+            break;
+
+        case FLAG_RCV:
+            if (frame[0] == Ar)
+            {
+                estado = A_RCV;
+                printf("estado %d - address\n", estado); // debug
+            }
+            else if (frame[0] == F)
+            {
+                estado = FLAG_RCV;
+            }
+            else
+            {
+                estado = START;
+            }
+            break;
+
+        case A_RCV:
+            if (frame[0] == RR0 || frame[0] == RR1)
+            {
+                if (frame[0] == RR0)
+                {
+                    ns = 0;
+                }
+                else
+                {
+                    ns = 1;
+                }
+
+                estado = C_RCV;
+                printf("estado %d - control\n", estado); // debug
+            }
+            else if (frame[0] == REJ0 || frame[0] == REJ1)
+            {
+                STOP = TRUE;
+                int llwrite(char *buf, int bufSize);
+                estado = START;
+            }
+            else if (frame[0] == F)
+            {
+                estado = FLAG_RCV;
+            }
+            else
+            {
+                estado = START;
+            }
+            break;
+
+        case C_RCV:
+            if (frame[0] == (At ^ UA))
+            {
+                estado = BCC_RCV;
+                printf("estado %d - BCC\n", estado); // debug
+            }
+            else if (frame[0] == F)
+            {
+                estado = FLAG_RCV;
+            }
+            else
+            {
+                estado = START;
+            }
+            break;
+
+        case BCC_RCV:
+            if (frame[0] == F)
+            {
+                STOP = TRUE;
+                printf("estado %d - valid UA\n\n", estado); // debug
+            }
+            else
+            {
+                estado = START;
+            }
+            break;
+        }
     }
+    estado = START;
+    STOP = FALSE;
 
     return i++;
 }
@@ -359,7 +437,7 @@ int llwrite(char *buf, int bufSize)
 int llread(char *packet) // nomear estados e acabar maquina de estados
 {
     printf("- Receiving information - llread()\n\n");
-    int fd, res, bcc2 = 0, bufferSize = 2500, i = 0;
+    int fd, res, bcc2 = 0, bufferSize = 2500, i=0;
     unsigned char frame[1], buffer[bufferSize];
 
     // State Machine Receiving Information
@@ -376,7 +454,6 @@ int llread(char *packet) // nomear estados e acabar maquina de estados
                 estado = FLAG_RCV;
                 printf("estado %d - flag\n", estado); // debug
             }
-
             break;
 
         case FLAG_RCV:
@@ -397,7 +474,15 @@ int llread(char *packet) // nomear estados e acabar maquina de estados
 
         case A_RCV:
             if ((frame[0] == I0 && ns == 0) || (frame[0] == I1 && ns == 1))
-            {
+            {   
+                if (frame[0] == I0)
+                {
+                    nr = 1;
+                }
+                else
+                {
+                    nr = 0;
+                }
                 estado = C_RCV;
                 printf("estado %d - control N(%d)\n", estado, ns); // debug
             }
@@ -431,19 +516,20 @@ int llread(char *packet) // nomear estados e acabar maquina de estados
         case BCC_RCV:
             if (frame[0] != F)
             {
-                buffer[i] = frame[0];
+                packet[i] = frame[0];
                 printf("estado %d - data\n", estado); // debug
                 estado = DATA_RCV;
             }
+            else if (frame[0] == F)
+            {
+                estado = BCC2_RCV; 
+            }
+            
             else
             {
                 estado = FLAG_RCV;
             }
             break;
-
-            // se o seguinte for a masc fazer unbuffin -adicionar estado de verificação
-            // se nao for parar
-            // enviar RR
 
         case DATA_RCV:
             if (frame[0] == F)
@@ -459,24 +545,23 @@ int llread(char *packet) // nomear estados e acabar maquina de estados
 
                     if (frame[0] == 0x7c)
                     {
-                        buffer[i++] = F;
+                        packet[i++] = F;
                     }
                     else if (frame[0] == 0x7d)
                     {
-                        buffer[i++] = ESC;
+                        packet[i++] = ESC;
                     }
                 }
                 else
                 {
-                    buffer[i++] = frame[0];
+                    packet[i++] = frame[0];
                 }
-
-                bcc2 = buffer[i] ^ bcc2;
+                bcc2 = packet[i] ^ bcc2;
             }
             break;
 
         case BCC2_RCV:
-            if (bcc2 == 0)
+            if (bcc2 == packet[--i])
             { // BCC2 is valid
                 printf("Valid frame received\n");
 
@@ -484,8 +569,8 @@ int llread(char *packet) // nomear estados e acabar maquina de estados
                 unsigned char rrFrame[5];
                 rrFrame[0] = F;
                 rrFrame[1] = Ar;
-                rrFrame[2] = (ns == 0) ? RR0 : RR1;
-                rrFrame[3] = Ar ^ rrFrame[2]; // BCC
+                rrFrame[2] = nr ? RR0 : RR1;
+                rrFrame[3] = Ar ^ rrFrame[2]; 
                 rrFrame[4] = F;
 
                 res = write(fd, rrFrame, 5);
@@ -501,15 +586,32 @@ int llread(char *packet) // nomear estados e acabar maquina de estados
             else
             {
                 printf("BCC2 error\n");
-                return -1;
+                // Send REJ
+                unsigned char rejFrame[5];
+                rejFrame[0] = F;
+                rejFrame[1] = Ar;
+                rejFrame[2] = nr ? REJ0 : REJ1;
+                rejFrame[3] = Ar ^ rejFrame[2]; 
+                rejFrame[4] = F;
+
+                res = write(fd, rejFrame, 5);
+                if (res != 5)
+                {
+                    perror("write");
+                    return -1;
+                }
+                printf("REJ frame sent\n");
+
+                estado = START;
             }
             break;
         }
     }
+    estado = START;
+    STOP = FALSE;
 
-    // REJ bcc2 diferentes (ver maquina de estados)
-
-    return 1;
+    bytesWritten = i - 6;
+    return bytesWritten;
 }
 
 // Closes previously opened connection; if showStatistics==TRUE, link layer should print statistics in the console on close
@@ -532,24 +634,12 @@ int llclose(linkLayer connectionParameters, int showStatistics)
         res = write(fd, frame, 5);
         printf("Sent DISC frame\n\n");
 
-        printf("Bytes sent\n");
-        for (int i = 0; i < 5; i++)
-        {
-            printf("%02x  ", frame[i]);
-        }
-        printf("\n\n");
-
-        res = write(fd, frame, 5);
-        printf("%d bytes written\n\n", res);
-
-        printf("Reciving DISC\n\n");
-
         // State Machine - reciving DISC from reciver
-        printf("State Machine SET:\n\n");
+        printf("State Machine - reciving DISC from reciver:\n\n");
         while (STOP == FALSE)
         {
-            {                             /* loop for input */
-                res = read(fd, frame, 1); /* returns after 1 chars have been input */
+            {                             
+                res = read(fd, frame, 1);
 
                 switch (estado)
                 {
@@ -582,7 +672,7 @@ int llclose(linkLayer connectionParameters, int showStatistics)
                     if (frame[0] == DISC)
                     {
                         estado = C_RCV;
-                        printf("estado %d - control received\n", estado); // debug
+                        printf("estado %d - C_DISC\n", estado); // debug
                     }
                     else if (frame[0] == F)
                     {
@@ -641,7 +731,7 @@ int llclose(linkLayer connectionParameters, int showStatistics)
     else if (connectionParameters.role == receiver)
     {
         // State Machine SET
-        printf("State Machine SET:\n\n"); // debug
+        printf("State Machine - reciving DISC from transmitter:\n\n"); // debug
         while (STOP == FALSE)
         {
             res = read(fd, frame, 1);
@@ -709,7 +799,7 @@ int llclose(linkLayer connectionParameters, int showStatistics)
                 if (frame[0] == F)
                 {
                     STOP = TRUE;
-                    printf("estado %d - valid SET\n\n", estado); // debug
+                    printf("estado %d - valid DISC\n\n", estado); // debug
                 }
                 else
                 {
@@ -718,6 +808,8 @@ int llclose(linkLayer connectionParameters, int showStatistics)
                 break;
             }
         }
+        estado = START;
+        STOP = FALSE;
         // DISC valido recebido
 
         frame[0] = F;
@@ -731,6 +823,8 @@ int llclose(linkLayer connectionParameters, int showStatistics)
         // receive UA frame
         estado = START;
         STOP = FALSE;
+
+        printf("State Machine - reciving UA from transmitter:\n\n");
         while (STOP == FALSE)
         {
             res = read(fd, frame, 1);
@@ -741,7 +835,7 @@ int llclose(linkLayer connectionParameters, int showStatistics)
                 if (frame[0] == F)
                 {
                     estado = FLAG_RCV;
-                    printf("State %d - flag received\n", estado);
+                    printf("State %d - flag\n", estado);
                 }
                 break;
 
@@ -749,7 +843,7 @@ int llclose(linkLayer connectionParameters, int showStatistics)
                 if (frame[0] == At)
                 {
                     estado = A_RCV;
-                    printf("State %d - address received\n", estado);
+                    printf("State %d - address\n", estado);
                 }
                 else if (frame[0] == F)
                 {
@@ -765,7 +859,7 @@ int llclose(linkLayer connectionParameters, int showStatistics)
                 if (frame[0] == UA)
                 {
                     estado = C_RCV;
-                    printf("State %d - control received\n", estado);
+                    printf("State %d - control\n", estado);
                 }
                 else if (frame[0] == F)
                 {
@@ -781,7 +875,7 @@ int llclose(linkLayer connectionParameters, int showStatistics)
                 if (frame[0] == At ^ UA)
                 {
                     estado = BCC_RCV;
-                    printf("State %d - BCC received\n", estado);
+                    printf("State %d - BCC\n", estado);
                 }
                 else if (frame[0] == F)
                 {
@@ -807,6 +901,8 @@ int llclose(linkLayer connectionParameters, int showStatistics)
             }
         }
     }
+    estado = START;
+    STOP = FALSE;
 
     if (tcsetattr(fd, TCSANOW, &oldtio) == -1)
     {
