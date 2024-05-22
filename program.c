@@ -42,8 +42,6 @@
 
 volatile int STOP=FALSE;
 
-int ns = 0;
-
   typedef struct linkLayer{
     char serialPort[50];
     int role; //defines the role of the program: 0==Transmitter, 1=Receiver
@@ -373,7 +371,7 @@ int llopen(linkLayer connectionParameters)
 int llwrite(char* buf, int bufSize)
  {  
     unsigned char newbuf[bufSize+bufSize+6];
-    int bcc2 = 0;
+    int bcc2 = 0, ns = 0;
 
     newbuf[0] = F;
     newbuf[1] = A;
@@ -532,6 +530,7 @@ int llread(char* packet) // nomear estados e acabar maquina de estados
 
     return 1;
 }
+}
 
 int main(int argc, char** argv)
 {
@@ -629,4 +628,5 @@ int main(int argc, char** argv)
     //llclose()
     
     return 0;
+}
 }
