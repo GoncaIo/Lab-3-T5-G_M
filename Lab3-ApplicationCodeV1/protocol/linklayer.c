@@ -33,7 +33,7 @@
 #define receiver 1
 
 volatile int STOP = FALSE;
-int ns = 0, nr = 0, estado = 0, bytesRead = 1, bytesWritten = 0;
+int ns = 0, nr = 0, estado = 0, bytesRead = 0, bytesWritten = 0;
 
 // Opens a connection using the "port" parameters defined in struct linkLayer, returns "-1" on error and "1" on sucess
 int llopen(linkLayer connectionParameters)
@@ -106,8 +106,8 @@ int llopen(linkLayer connectionParameters)
         // State Machine UA
         printf("State Machine UA:\n\n");
         while (STOP == FALSE)
-        {
-            {                               /* loop for input */
+            {    
+                sleep(0.1);                            /* loop for input */
                 res = read(fd, frameAU, 1); /* returns after 1 chars have been input */
 
                 switch (estado)
@@ -155,7 +155,7 @@ int llopen(linkLayer connectionParameters)
                     break;
 
                 case C_RCV:
-                    if (frameAU[0] == (At ^ UA))
+                    if (frameAU[0] == (Ar ^ UA))
                     {
                         estado = BCC_RCV;
                         printf("estado %d - BCC\n", estado); // debug
@@ -183,9 +183,8 @@ int llopen(linkLayer connectionParameters)
                     break;
                 }
             }
-            
             // UA valido recebido
-        }
+        
         estado = START;
         STOP = FALSE;
     }
@@ -194,7 +193,8 @@ int llopen(linkLayer connectionParameters)
         // State Machine SET
         printf("State Machine SET:\n\n"); // debug
         while (STOP == FALSE)
-        {
+        {   
+            sleep(0.1); 
             res = read(fd, frame, 1);
 
             switch (estado)
@@ -337,7 +337,8 @@ int llwrite(char *buf, int bufSize)
     // Maquina de estados receção RR ou REJ
     printf("State Machine Receiving RR or REJ:\n\n");
     while (STOP == FALSE)
-    {                           
+    {                 
+        sleep(0.1);           
         res = read(fd, frame, 1); 
 
         switch (estado)
@@ -444,6 +445,7 @@ int llread(char *packet) // nomear estados e acabar maquina de estados
     printf("State Machine Receiving I:\n\n");
     while (STOP == FALSE)
     {
+        sleep(0.1); 
         res = read(fd, frame, 1);
 
         switch (estado)
@@ -637,8 +639,8 @@ int llclose(linkLayer connectionParameters, int showStatistics)
         // State Machine - reciving DISC from reciver
         printf("State Machine - reciving DISC from reciver:\n\n");
         while (STOP == FALSE)
-        {
-            {                             
+            {     
+                 sleep(0.1);                         
                 res = read(fd, frame, 1);
 
                 switch (estado)
@@ -726,7 +728,7 @@ int llclose(linkLayer connectionParameters, int showStatistics)
 
             res = write(fd, frameUA, 5);
             printf("Sent UA frame\n");
-        }
+        
     }
     else if (connectionParameters.role == receiver)
     {
@@ -734,6 +736,7 @@ int llclose(linkLayer connectionParameters, int showStatistics)
         printf("State Machine - reciving DISC from transmitter:\n\n"); // debug
         while (STOP == FALSE)
         {
+            sleep(0.1); 
             res = read(fd, frame, 1);
 
             switch (estado)
@@ -827,6 +830,7 @@ int llclose(linkLayer connectionParameters, int showStatistics)
         printf("State Machine - reciving UA from transmitter:\n\n");
         while (STOP == FALSE)
         {
+            sleep(0.1); 
             res = read(fd, frame, 1);
 
             switch (estado)
