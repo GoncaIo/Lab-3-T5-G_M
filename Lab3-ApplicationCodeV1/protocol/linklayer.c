@@ -400,7 +400,7 @@ int llwrite(char *buf, int bufSize)
             break;
 
         case C_RCV:
-            if (frame[0] == (At ^ UA))
+            if (frame[0] == At ^ RR0 || frame[0] == At ^ RR1)
             {
                 estado = BCC_RCV;
                 printf("estado %d - BCC\n", estado); // debug
@@ -500,7 +500,7 @@ int llread(char *packet) // nomear estados e acabar maquina de estados
             break;
 
         case C_RCV:
-            if ((frame[0] == I0 ^ At && ns == 0) || (frame[0] == I1 ^ At && ns == 1))
+            if ((frame[0] == I0 ^ At) || (frame[0] == I1 ^ At))
             {
                 estado = BCC_RCV;
                 printf("estado %d - BCC1\n", estado); // debug
