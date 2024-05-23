@@ -34,12 +34,12 @@
 
 volatile int STOP = FALSE;
 int ns = 0, nr = 0, estado = 0, bytesRead = 0, bytesWritten = 0;
+static int fd, res;
 
 // Opens a connection using the "port" parameters defined in struct linkLayer, returns "-1" on error and "1" on sucess
 int llopen(linkLayer connectionParameters)
 {
     printf("- Opening connection - llopen()\n\n");
-    int fd, res;
     struct termios oldtio, newtio;
     unsigned char frame[5], frameAU[5];
 
@@ -301,7 +301,7 @@ int llwrite(char *buf, int bufSize)
 {
     printf("\n- Sending information - llwrite()\n\n");
 
-    int fd, res, newbufSize = bufSize * 2 + 6;
+    int newbufSize = bufSize * 2 + 6;
     unsigned char newbuf[newbufSize], frame[1];
     int bcc2 = 0, i;
 
@@ -438,7 +438,7 @@ int llwrite(char *buf, int bufSize)
 int llread(char *packet) // nomear estados e acabar maquina de estados
 {
     printf("- Receiving information - llread()\n\n");
-    int fd, res, bcc2 = 0, bufferSize = 2500, i=0;
+    int bcc2 = 0, bufferSize = 2500, i=0;
     unsigned char frame[1], buffer[bufferSize];
 
     // State Machine Receiving Information
@@ -620,7 +620,7 @@ int llread(char *packet) // nomear estados e acabar maquina de estados
 int llclose(linkLayer connectionParameters, int showStatistics)
 {
     printf("- Closing connection - llclose()\n\n");
-    int fd, res, estado = 0;
+    int estado = 0;
     struct termios oldtio, newtio;
     unsigned char frame[5], frameAU[5];
 
